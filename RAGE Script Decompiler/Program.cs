@@ -5,6 +5,7 @@ using System.IO.Compression;
 using System.Threading;
 using CommandLine;
 using RageDecompiler.Properties;
+using ShellProgressBar;
 
 namespace RageDecompiler
 {
@@ -25,6 +26,7 @@ namespace RageDecompiler
         public static object ThreadLock;
         public static int ThreadCount;
 
+        private static int _fileCount;
         private static string _saveDirectory = "";
         private static readonly Queue<string> _compileList = new Queue<string>();
         public static ThreadLocal<int> GcCount = new ThreadLocal<int>(() => { return 0; });
@@ -175,6 +177,7 @@ namespace RageDecompiler
                 var inputPath = Utils.GetAbsolutePath(o.InputPath);
                 var outputPath = o.OutputPath != null ? Utils.GetAbsolutePath(o.OutputPath) : null;
                 var nativeFile = o.NativeFile != null ? Utils.GetAbsolutePath(o.NativeFile) : null;
+
                 if (File.Exists(inputPath)) // Decompile a single file if given the option.
                 {
                     if (outputPath != null && File.Exists(outputPath) && !o.Force)
@@ -196,6 +199,8 @@ namespace RageDecompiler
 
                     InitializeFields(o);
                     InitializeNativeTable(nativeFile);
+
+                    _fileCount = Directory.GetFiles(inputPath, "*.ysc*").Length;
 
                     foreach (var file in Directory.GetFiles(inputPath, "*.ysc*"))
                         _compileList.Enqueue(file);
@@ -239,39 +244,58 @@ namespace RageDecompiler
 
         private static void Decompile()
         {
-            while (_compileList.Count > 0)
+            var totalTicks = _fileCount;
+            var options = new ProgressBarOptions
             {
-                string scriptToDecode;
-                lock (ThreadLock)
-                {
-                    scriptToDecode = _compileList.Dequeue();
-                }
+                ProgressBarOnBottom = true,
+                BackgroundColor = ConsoleColor.DarkGray,
+                BackgroundCharacter = '\u2593'
+            };
 
-                try
+            using (var progressBar = new ProgressBar(totalTicks, "Decompiling...", options))
+            {
+                while (_compileList.Count > 0)
                 {
+                    string scriptToDecode;
+                    lock (ThreadLock)
+                    {
+                        scriptToDecode = _compileList.Dequeue();
+                    }
+
+                    var outName = Path.GetFileNameWithoutExtension(scriptToDecode);
                     var suffix = ".c" + (CompressedOutput ? ".gz" : "");
-                    var outname = Path.GetFileNameWithoutExtension(scriptToDecode);
-                    outname = outname.Replace(".ysc", "");
-                    if (Path.GetExtension(scriptToDecode) == ".gz"
-                    ) // Ensure the extension without compression is removed.
-                        outname = Path.GetFileNameWithoutExtension(outname);
 
-                    var output = Path.Combine(_saveDirectory, outname + suffix);
-                    Console.WriteLine($"Decompiling: {Path.GetFileName(scriptToDecode)} -> {Path.GetFileName(output)}");
+                    outName = outName?.Replace(".ysc", "");
 
-                    var scriptFile = ProcessScriptfile(scriptToDecode, output);
+                    // Ensure the extension without compression is removed.
+                    if (Path.GetExtension(scriptToDecode) == ".gz")
+                        outName = Path.GetFileNameWithoutExtension(outName);
 
-                    if (AggregateFunctions) /* Compile aggregation statistics for each function. */
-                        scriptFile.CompileAggregate();
+                    var output = Path.Combine(_saveDirectory, outName + suffix);
 
-                    scriptFile.Close();
-                    if (GcCount.Value++ % 25 == 0)
-                        GC.Collect();
-                }
-                catch (Exception ex)
-                {
-                    throw new SystemException("Error decompiling script " +
-                                              Path.GetFileNameWithoutExtension(scriptToDecode) + " - " + ex.Message);
+                    try
+                    {
+                        progressBar.Message = $"Decompiling {Path.GetFileName(scriptToDecode)}...";
+                        var scriptFile = ProcessScriptfile(scriptToDecode, output);
+
+                        // Compile aggregation statistics for each function.
+                        if (AggregateFunctions)
+                            scriptFile.CompileAggregate();
+
+                        scriptFile.Close();
+                        if (GcCount.Value++ % 25 == 0)
+                            GC.Collect();
+                    }
+                    catch (Exception ex)
+                    {
+                        throw new SystemException("Error decompiling script " +
+                                                  Path.GetFileNameWithoutExtension(scriptToDecode) + " - " +
+                                                  ex.Message);
+                    }
+                    finally
+                    {
+                        progressBar.Tick();
+                    }
                 }
             }
 
