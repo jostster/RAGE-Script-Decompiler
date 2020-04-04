@@ -174,11 +174,6 @@ UpgradeLog*.htm
 # Microsoft Fakes
 FakesAssemblies/
 
-# we use premake, so no solutions should get committed
-*.vcxproj
-*.sln
-*.filters
-
 # node modules
 node_modules/
 
