@@ -49,6 +49,10 @@ decompiler.exe --default --opcode=v -a -n "Root:\gta5-nativedb-data\natives.json
 
 # Bulk decompile compressed RDR3
 decompiler.exe --default --opcode=rdr --gzin -n ./rdr3-nativedb-data/natives.json -i ./ysc/script_mp_rel -o ./rdr3-decompiled-scripts.1232/script_mp_rel
+
+# Custom SP stuff
+decompiler.exe --default --opcode=rdr -i ".\script_sp_rel" -o ".\result_sp"
+decompiler.exe --default --opcode=rdr -i ".\script_mp_rel" -o ".\result_mp"
 ```
 
 # Aggregation
