@@ -62,7 +62,7 @@ namespace RageDecompiler
                 {
                     case Program.IntType.Int:
                     case Program.IntType.Hex:
-                        _stack.Add(new StackValue(this, StackValue.Type.Literal, Hashes.Inttohex(value), DataType.Int));
+                        _stack.Add(new StackValue(this, StackValue.Type.Literal, Hashes.IntToHex(value), DataType.Int));
                         break;
                     case Program.IntType.Uint:
                         _stack.Add(new StackValue(this, StackValue.Type.Literal, unchecked((uint) value).ToString(),

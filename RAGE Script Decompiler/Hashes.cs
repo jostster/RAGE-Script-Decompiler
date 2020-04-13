@@ -4,6 +4,8 @@ using System.CodeDom.Compiler;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.IO.Compression;
+using System.Linq;
 using System.Reflection;
 using RageDecompiler.Properties;
 
@@ -12,17 +14,22 @@ namespace RageDecompiler
     public class Hashes
     {
         private readonly Dictionary<int, string> _hashes;
+        private readonly Dictionary<int, string> _usedHashes;
 
         public Hashes()
         {
             _hashes = new Dictionary<int, string>();
+            _usedHashes = new Dictionary<int, string>();
+
             var file = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), "Entities.dat");
 
             StreamReader reader;
+
             if (File.Exists(file))
                 reader = new StreamReader(File.OpenRead(file));
             else
                 reader = new StreamReader(new MemoryStream(Resources.Entities));
+
             Populate(reader);
         }
 
@@ -33,7 +40,7 @@ namespace RageDecompiler
                 var line = reader.ReadLine();
                 var hash = (int) Utils.GetJoaat(line.ToLower());
 
-                if (hash != 0 && !_hashes.ContainsKey(hash))
+                if (hash != 0 && !IsKnownHash(hash))
                     _hashes.Add(hash, line.ToUpper());
             }
         }
@@ -41,28 +48,48 @@ namespace RageDecompiler
         public string GetHash(int value, string temp = "")
         {
             if (!Program.ReverseHashes)
-                return Inttohex(value);
-            if (_hashes.ContainsKey(value))
+                return IntToHex(value);
+
+            if (IsKnownHash(value))
+            {
+                if (!IsUsedHash(value))
+                    _usedHashes.Add(value, _hashes[value]);
+
                 return "joaat(\"" + _hashes[value] + "\")";
-            return Inttohex(value) + temp;
+            }
+
+            return IntToHex(value) + temp;
         }
 
         public string GetHash(uint value, string temp = "")
         {
             if (!Program.ReverseHashes)
                 return value.ToString();
-            var intvalue = (int) value;
-            if (_hashes.ContainsKey(intvalue))
-                return "joaat(\"" + _hashes[intvalue] + "\")";
+
+            var intValue = (int) value;
+
+            if (IsKnownHash(intValue))
+            {
+                if (!IsUsedHash(intValue))
+                    _usedHashes.Add(intValue, _hashes[intValue]);
+
+                return "joaat(\"" + _hashes[intValue] + "\")";
+            }
+
             return value + temp;
         }
 
-        public bool IsKnownHash(int value)
+        private bool IsKnownHash(int value)
         {
             return _hashes.ContainsKey(value);
         }
 
-        public static string Inttohex(int value)
+        private bool IsUsedHash(int value)
+        {
+            return _usedHashes.ContainsKey(value);
+        }
+
+        public static string IntToHex(int value)
         {
             if (Program.IntStyle == Program.IntType.Hex)
             {
@@ -72,6 +99,24 @@ namespace RageDecompiler
             }
 
             return value.ToString();
+        }
+
+        public void SaveUsedHashes(string saveDirectory)
+        {
+            using (Stream fileStream = File.Create(Path.Combine(saveDirectory, "_hashes.txt")))
+            {
+                var streamWriter = new StreamWriter(Program.CompressedOutput
+                    ? new GZipStream(fileStream, CompressionMode.Compress)
+                    : fileStream);
+
+                streamWriter.AutoFlush = true;
+
+                var list = _usedHashes.ToList();
+                list.Sort((pair1, pair2) => string.Compare(pair1.Value, pair2.Value, StringComparison.Ordinal));
+
+                foreach (var entry in list)
+                    streamWriter.WriteLine(entry.Value);
+            }
         }
     }
 
@@ -83,7 +128,7 @@ namespace RageDecompiler
         {
             _entries = new Dictionary<int, string>();
             var file = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location),
-                Program.RdrOpcodes ? "rdrgxr.dat" : "vgxt.dat");
+                Program.RdrOpcodes ? "rdrgxt.dat" : "vgxt.dat");
 
             StreamReader reader;
             if (File.Exists(file))

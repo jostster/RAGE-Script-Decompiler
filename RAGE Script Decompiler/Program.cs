@@ -231,6 +231,8 @@ namespace RageDecompiler
                         Aggregate.Instance.SaveAggregate(outputPath);
                         Console.WriteLine("Saving frequency file...");
                         Aggregate.Instance.SaveFrequency(outputPath);
+                        Console.WriteLine("Saving used hashes file...");
+                        Hashbank.SaveUsedHashes(outputPath);
                     }
 
                     Console.WriteLine("Done!");
