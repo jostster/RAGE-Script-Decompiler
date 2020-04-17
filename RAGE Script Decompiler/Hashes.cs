@@ -14,12 +14,12 @@ namespace RageDecompiler
     public class Hashes
     {
         private readonly Dictionary<int, string> _hashes;
-        private readonly Dictionary<int, string> _usedHashes;
+        private readonly Dictionary<string, int> _usedHashes;
 
         public Hashes()
         {
             _hashes = new Dictionary<int, string>();
-            _usedHashes = new Dictionary<int, string>();
+            _usedHashes = new Dictionary<string, int>();
 
             var file = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), "Entities.dat");
 
@@ -52,8 +52,15 @@ namespace RageDecompiler
 
             if (IsKnownHash(value))
             {
-                if (!IsUsedHash(value))
-                    _usedHashes.Add(value, _hashes[value]);
+                if (!IsUsedHash(_hashes[value]))
+                {
+                    _usedHashes.Add(_hashes[value], 1);
+                }
+                else
+                {
+                    _usedHashes[_hashes[value]]++;
+                }
+                    
 
                 return "joaat(\"" + _hashes[value] + "\")";
             }
@@ -70,8 +77,15 @@ namespace RageDecompiler
 
             if (IsKnownHash(intValue))
             {
-                if (!IsUsedHash(intValue))
-                    _usedHashes.Add(intValue, _hashes[intValue]);
+                if (!IsUsedHash(_hashes[intValue]))
+                {
+                    _usedHashes.Add(_hashes[intValue], 1);
+                }
+                else
+                {
+                    _usedHashes[_hashes[intValue]]++;
+                }
+                    
 
                 return "joaat(\"" + _hashes[intValue] + "\")";
             }
@@ -84,7 +98,7 @@ namespace RageDecompiler
             return _hashes.ContainsKey(value);
         }
 
-        private bool IsUsedHash(int value)
+        private bool IsUsedHash(string value)
         {
             return _usedHashes.ContainsKey(value);
         }
@@ -103,7 +117,7 @@ namespace RageDecompiler
 
         public void SaveUsedHashes(string saveDirectory)
         {
-            using (Stream fileStream = File.Create(Path.Combine(saveDirectory, "_hashes.txt")))
+            using (Stream fileStream = File.Create(Path.Combine(saveDirectory, "_hashes.csv")))
             {
                 var streamWriter = new StreamWriter(Program.CompressedOutput
                     ? new GZipStream(fileStream, CompressionMode.Compress)
@@ -112,10 +126,11 @@ namespace RageDecompiler
                 streamWriter.AutoFlush = true;
 
                 var list = _usedHashes.ToList();
-                list.Sort((pair1, pair2) => string.Compare(pair1.Value, pair2.Value, StringComparison.Ordinal));
+                list.Sort((pair1, pair2) => string.Compare(pair1.Key, pair2.Key, StringComparison.Ordinal));
 
+                streamWriter.WriteLine("Hash, Count");
                 foreach (var entry in list)
-                    streamWriter.WriteLine(entry.Value);
+                    streamWriter.WriteLine($"{entry.Key}, {entry.Value}");
             }
         }
     }
